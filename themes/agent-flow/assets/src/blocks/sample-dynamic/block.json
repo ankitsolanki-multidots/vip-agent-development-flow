@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "name": "agent-flow/sample-dynamic",
+  "version": "0.1.0",
+  "title": "Sample Dynamic",
+  "apiVersion": 3,
+  "category": "agent-flow",
+  "icon": "lock",
+  "description": "Sample Dynamic block.",
+  "keywords": ["sample", "Dynamic"],
+  "supports": {
+    "html": false
+  },
+  "textdomain": "agent-flow",
+  "attributes": {
+    "heading": {
+      "type": "string",
+      "default": "This is Default Heading"
+    }
+  },
+  "editorScript": "file:./index.js",
+  "viewScript": [ "file:./view.js" ],
+	"editorStyle": "file:./index.css",
+	"style": "file:./style-index.css"
+}
