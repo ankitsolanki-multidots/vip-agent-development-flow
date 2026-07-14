@@ -203,6 +203,43 @@ jobs:
             If you are blocked or unclear on something, post a comment on the issue
             asking for clarification rather than guessing.
 
+      - name: Dump Claude execution error details
+        if: failure()
+        continue-on-error: true
+        env:
+          CLAUDE_WORK_FILE: ${{ steps.claude-work.outputs.execution_file }}
+          CLAUDE_PLAN_FILE: ${{ steps.claude-plan.outputs.execution_file }}
+        run: |
+          set +e
+          echo "::group::Claude execution output"
+          found=0
+          for f in "$CLAUDE_WORK_FILE" "$CLAUDE_PLAN_FILE" "$RUNNER_TEMP/claude-execution-output.json"; do
+            if [ -n "$f" ] && [ -f "$f" ]; then
+              found=1
+              echo "==== file: $f ===="
+              # Real error text usually lives in result/error fields of this JSON.
+              head -c 300000 "$f"
+              echo
+            fi
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "No claude-execution-output.json found on runner"
+            ls -la "$RUNNER_TEMP" || true
+          fi
+          echo "::endgroup::"
+
+      - name: Upload Claude execution output
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-execution-output-${{ github.run_id }}
+          path: |
+            ${{ steps.claude-work.outputs.execution_file }}
+            ${{ steps.claude-plan.outputs.execution_file }}
+            ${{ runner.temp }}/claude-execution-output.json
+          if-no-files-found: ignore
+
       - name: Comment on agent failure
         if: failure()
         env:
@@ -225,7 +262,7 @@ jobs:
               '- Account credits / billing limit',
               '- [Claude GitHub App](https://github.com/apps/claude) not installed on this repo',
               '',
-              `Check the full job log (with \`show_full_output\`): ${runUrl}`,
+              `Open the failed job log and expand **Dump Claude execution error details**, or download the \`claude-execution-output\` artifact: ${runUrl}`,
             ].join('\n');
 
             await github.rest.issues.createComment({
