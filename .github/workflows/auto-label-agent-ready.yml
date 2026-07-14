@@ -24,6 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
+      # Needed to start Agent-Ready Auto-Trigger via workflow_dispatch
+      actions: write
+      contents: read
 
     steps:
       - name: Check issue structure and apply label
@@ -59,6 +62,23 @@ jobs:
             const currentLabels = issue.labels.map(l => l.name);
             const hasAgentReadyLabel = currentLabels.includes('agent-ready');
 
+            async function dispatchAgentReady(issueNumber) {
+              // Labels applied with GITHUB_TOKEN do not start other workflows on
+              // issues.labeled. workflow_dispatch does — so kick the agent here.
+              // https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
+              const ref = context.payload.repository?.default_branch || 'main';
+              console.log(`Dispatching Agent-Ready Auto-Trigger for issue #${issueNumber} on ref ${ref}`);
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'agent-ready-trigger.yml',
+                ref,
+                inputs: {
+                  issue_number: String(issueNumber)
+                }
+              });
+            }
+
             if (hasAllSections && hasScopeBoundaries && hasAcceptanceCriteria) {
               if (!hasAgentReadyLabel) {
                 console.log('Issue meets agent-ready criteria, adding label');
@@ -69,13 +89,14 @@ jobs:
                     issue_number: issue.number,
                     labels: ['agent-ready']
                   });
+                  await dispatchAgentReady(issue.number);
                 } catch (err) {
                   // Most likely cause: label does not exist in the repo yet.
                   // Fix: run the Setup Labels workflow (Actions → Setup Labels → Run workflow).
-                  core.setFailed(`Failed to add agent-ready label: ${err.message}. Ensure the label exists by running the Setup Labels workflow.`);
+                  core.setFailed(`Failed to add agent-ready label or dispatch agent: ${err.message}. Ensure the label exists by running the Setup Labels workflow.`);
                 }
               } else {
-                console.log('Issue already has agent-ready label — skipping');
+                console.log('Issue already has agent-ready label — skipping label + dispatch');
               }
             } else {
               // Log what's missing for debugging
